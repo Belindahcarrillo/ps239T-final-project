@@ -38,6 +38,6 @@ R, version 3
     
 ## Code
 01_NY_tweets-datacollection: Collects data from Twitter API, converts twitter json text to plain text and and exports data to csvs.
-02_NY_tweets-datacleaning:merge-data.R: Loads, cleans, and merges the raw Polity and NYT datasets into the Analysis Dataset.
+02_NY_tweets-datacleaning:merge-data.R: Loads, cleans, and executes exploratory analysis. 
 
 Graphs:
