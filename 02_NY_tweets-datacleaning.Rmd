@@ -1,0 +1,602 @@
+---
+output:
+  html_document: default
+  pdf_document: default
+---
+### BelindaCarrillo###
+
+Code Outline: Data cleaning
+1: Setup
+  -This chunck will set things up for me. Load necessary libraries and set my working directory. 
+2: Preliminary Cleaning and Organizing 
+  -Load and subset data to only focus on variables of interest
+3: Tokenizing
+  -Single tokens (individual words)
+  -Bigrams (pairs of words)
+  -Trigrams (3 consectuative words)
+4: Sentiment Analysis
+  -discrete emotions
+  -positive vs negative
+5: TF-IDF
+6: Staten Island
+7: Visualizations and Correlations
+8: Topic Modeling 
+
+                                          Setup
+```{r}
+
+#Set my working directory to where I saved my data and can access it. 
+setwd("~/Research/TwitterSleepBeliefs/Data/RawData")
+
+#Organization/cleaning packages
+#install.packages("lubridate")
+#install.packages("dplyr")
+#install.packages("readr")
+#install.packages("stringr")
+#install.packages("tidytext")
+library(lubridate)
+library(dplyr)
+library(readr)
+library(stringr)
+library(tidytext)
+#Visualization packages
+#install.packages("ggplot")
+#install.packges("ggraph")
+#install.packages("igraph")
+library(ggplot2)
+library(ggraph)
+library(igraph)
+
+```
+
+The first step is just to load the raw data. Admittedly, I created the All file by hand with old school cpoy and paste even though I could have very easily and more quickly done this in r with rbind. But for the sake of transparency I wanted to disclose. 
+
+                                 "Cleaning" and Organizing 
+```{r}
+
+#Load and Look at Data
+
+NYraw_tweets <- read.csv("twitter.sleepAll.4918.csv", colClasses = "character") #Pulled in raw data that I collected, made sure that when turning into a dataframe the text was not coreced into factors but rather remained as a character vector.
+
+str(NYraw_tweets) #Cool great, columns have not been converted to factors which is the default and remained as characters which is what I want.
+
+NY_tweets <- NYraw_tweets[,c("plaintext", "place_full_name")] #Don't need all the metadata right now, just want all the rows and only the column of the plaintext tweets and the name of the place the tweet is associated with. 
+
+head(NY_tweets) #Yup, yup, only the two columns of interest
+
+tweets_df <- data_frame(line = 1:510, tweet = NY_tweets$plaintext) #Making a tibble where I am treating each row as a single line of text, labeling it to keep track of which words belong to which tweets and then naming my plaintext "tweets". Got rid of place_full_name column since a lot where NA's anyways. Did line = 1:510 becuase that's how many tweets I have.
+
+tweets_df #Great! I have 1 "line" per twitter user and their tweet.
+
+```
+
+
+Great! Now that I have my data subsetted and organized the way I want I can stat to "tokenize" my text. First I'll break the text into single words/ single tokens. Then I'll tokenize into bigrams and trigrams. Importantly, I also want to make sure that I keep track of which borough (ex.Manhattan vs Bronx) each data point is originating from.
+
+                                          Tokenizing 
+```{r}  
+
+singletokens <- tweets_df %>%
+                unnest_tokens(word, tweet) # tokenizing each word using tidytext's unnest_tokens function. I'm saying with the tweets_df split the tweet column into a new column called word. The default is to do this by each individual word so I didn't have to specfic that here, but will need to later for bigrams and trigram.
+
+singletokens #Great, I see that with my line column I can still tell which words belong any particular tweet.
+
+singletokens %>% # Creating a visualization of of my most common words
+  count(word, sort = TRUE) %>% #Counting the frequency of any given words and sorting in ascending order
+  mutate(word = reorder(word, n)) %>% # Creating a new column "n" the prints word frequency
+  filter(n>120) %>% #Filtered so that the graph only shows words that appear more than 120 times
+  ggplot(aes(word, n)) +
+  geom_col() + 
+  xlab(NULL) +
+  coord_flip()#Cool, almost like a manip check to make sure that most of my data is sleep related (and "stopwords")
+
+#Okay now that I know my most common words I realized that before I unnested them it would have been good to make sure I could keep track of location... So this is adding a new column to the tweets_df that indicated borough. I was able to index rows becuase from the individual csvs I knew how many tweets came from each location and bind them all together.
+frequency <- bind_rows(mutate(tweets_df[1:90, ], borough = "Manhattan"),
+                       mutate(tweets_df[91:203, ], borough = "Brooklyn"),
+                       mutate(tweets_df[204:308, ], borough = "Bronx"),
+                       mutate(tweets_df[309:410, ], borough = "Queens"),
+                       mutate(tweets_df[411:510, ], borough = "Staten Island"))
+
+frequency2 <- frequency %>% #Thought it would be good to keep original frequency so I created a new variable that is similar to my single tokens tibble but now has borough and porportion. 
+  unnest_tokens(word, tweet) %>%
+  group_by(borough) %>%
+  count(word) %>%
+  mutate(proportion = n / sum(n))
+
+frequency2 #The proportion of time each word is used in each borough. Porportion is preferable to just frequency of any given token words because now I have a measure of how often that particular word appears in data from a specific borough. Becuase the number of tweets I have from each borough is different it wouldn't make sense to just compare frequencies since some words could just appear more becuase there are more words in general from that borough.  
+
+####### Tokenizing to Bigrams and Trigrams #########
+
+head(frequency)
+
+#Tokenize text to bigrams
+nyc_bigrams <- frequency %>%
+  unnest_tokens(bigram, tweet, token = "ngrams", n = 2) #Same as above, just now we are telling it to break tokens by every 2 words. and This time I used the og frequency tibble I created to keep location infomation. 
+
+nyc_bigrams
+
+#Now let's look at the most common bigrams
+nyc_bigrams %>%
+  count(bigram, sort = TRUE)
+
+#For fun let's do tri-grams
+
+nyc_trigrams <- frequency %>%
+  unnest_tokens(trigram, tweet, token = "ngrams", n = 3)
+
+nyc_trigrams
+
+nyc_trigrams %>%
+  count(trigram, sort = TRUE) #Super cool! Definitely much more informative than single tokens
+
+```
+
+Cool, I have different variations of tokens now I want to try to get something more meaningful out of them. In this next chunk I will explore some sentiment analysis techniques. First step is to load some popular sentiment analysis packages. 
+
+                                        Sentiment Analysis
+```{r}
+
+get_sentiments("afinn") #This gives words a numerical score from -5 to 5 (neg-pos)
+get_sentiments("nrc") #This cateogrizes words into discrete emotions  "anger", "anticipation", "disgust", "fear", "joy", "sadness", "surprise", or "trust" and valence pos/neg
+
+#First thing is to create varaibles that are subsetted to just the discrete emotions I want to look are. For instance what "anger" words are people using when talking about sleep? Printing the subset (though I didn't explictly write that in the code for space reasons) is nice too because it lets you see how words are cateorgized.
+
+nrc_anger <- get_sentiments("nrc") %>% #Filtering to get just the anger words
+  filter(sentiment == "anger")
+
+nrc_anticipation <- get_sentiments("nrc") %>% #Filtering to get just the anticipation words
+  filter(sentiment == "anticipation")
+
+nrc_joy <- get_sentiments("nrc") %>% #Filtering to get just the joy words
+  filter(sentiment == "joy")
+
+nrc_positive <- get_sentiments("nrc") %>% #Filtering to get just the generally positive words
+  filter(sentiment == "positive")
+
+#I want to see what the anger and positive words are overall, across boroughs, so I've joined by word.
+ny_anger <-singletokens %>%
+  inner_join(nrc_anger) %>%
+  count(word, sort = TRUE) #Top 3 being shit, feeling, and attack
+
+ny_positive <-singletokens %>%
+  inner_join(nrc_positive) %>%
+  count(word, sort = TRUE) #Top 3 being nap, love, 
+
+#Now to see what the most common anger words are from specific boroughs I've filtered by borough
+man_anger <-singletokens %>%
+  filter(line>= 1&line<=90) %>% #filter it to be lines greater/= than 1 but less than/= 90 becuase I know that is how I labeled my Manhattan borough
+  inner_join(nrc_anger) %>%
+  count(word, sort = TRUE) #Cool, top anger words is feeling. 
+
+bron_anger <-singletokens %>%
+  filter(line>= 204&line<=308) %>% #filter it to be lines greater than/= 204 but less than/= 308 becuase I know that is how I labeled my Bronx borough
+  inner_join(nrc_anger) %>%
+  count(word, sort = TRUE) #Cool, top anger words are shit and damn
+
+############
+
+get_sentiments("nrc") %>% 
+  filter(sentiment %in% c("positive", 
+                          "negative")) %>% 
+  count(sentiment)
+############
+
+#It started to ger annoying that I didn't have token down by borough as well so I created that
+singletokens.withboro <- frequency %>%
+                unnest_tokens(word, tweet)
+        
+#Now I want to see if the afinn sentiment scores overall positivity vs negativity are different by sentiment. 
+afinntest <- singletokens.withboro %>% 
+  inner_join(get_sentiments("afinn")) %>% 
+  group_by(index = borough) %>% 
+  summarise(sentiment = sum(score)) %>% #,mean = sum(score)/sum, var) %>% 
+  mutate(method = "AFINN")
+
+afinntest #Fansinating! Bronx with lowest SES has the greatest use of negative words and Manhattan with highest SES has the lowest negativity score! 
+
+nrc_word_counts <- singletokens.withboro %>%
+  inner_join(get_sentiments("nrc")) %>%
+  count(word, sentiment, sort = TRUE) %>%
+  ungroup()
+
+nrc_word_counts #Nice! Now let's visualize
+
+nrc_word_counts %>%   #Cool! Now I can see the top 3 discrete emotion words across all boroughs
+  group_by(sentiment) %>%
+  top_n(n=3) %>%
+  ggplot(aes(word, n, fill = sentiment)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~sentiment, scales = "free_y") +
+  labs(y = "Contribution to sentiment",
+       x = NULL) +
+  coord_flip()
+
+#######
+
+bingnegative <- get_sentiments("bing") %>% 
+  filter(sentiment == "negative")
+
+wordcounts <- frequency2 %>%
+  group_by(borough) %>%
+  summarize(words = sum(n))
+
+frequency2 %>% #Looking at the ratio column you can see that staten island uses more negative words in proportion to all words used. 
+  semi_join(bingnegative) %>%
+  group_by(borough) %>%
+  summarize(negativewords = n()) %>%
+  left_join(wordcounts, by ="borough") %>%
+  mutate(ratio = negativewords/words) %>%
+  top_n(5) %>%
+  ungroup()
+
+########Sentiment analysis with bigrams#############
+
+#First I need to split apart my bigrams, while still maintaining them as a unit, so that I can see if there are negateing words paried with a sentiword that reverses the meaning/context of the word ex. not happy, etc.
+
+bigrams_separated <- nyc_bigrams %>%
+  separate(bigram, c("word1", "word2"), sep = " ") #Cool that's done
+
+# Now I just want to get a sense of the most commone ones like before...new bigram counts:
+bigram_counts <- bigrams_separated %>% 
+  count(word1, word2, sort = TRUE)
+
+bigram_counts #Cool its still the same as above, just made into two cloumns
+
+#Okay now let's look for negating words, I've started with "not"
+
+bigrams_separated %>%
+  filter(word1 == "not") %>%
+  count(word1, word2, sort = TRUE)
+
+#Doing sentiment analysis with just single words was a bit of a mess, so now with the afinn package I loaded earlier I can try to be a little more precise..
+
+afinn <- get_sentiments("afinn")
+
+not_words <- bigrams_separated %>%
+  filter(word1 == "not") %>%
+  inner_join(afinn, by = c(word2 = "word")) %>%
+  count(word2, score, sort = TRUE) %>%
+  ungroup()
+
+not_words #It looks like "not tired" and "not embarrassed" might be getting more negative scores than the actual sentiment that the tweeter is trying to convey...
+
+#It's worth asking which words contributed the most in the "wrong" direction. To compute that, we can multiply their score by the number of times they appear (so that a word with a score of +3 occurring 10 times has as much impact as a word with a sentiment score of +1 occurring 30 times). We visualize the result with a bar plot
+
+not_words %>%
+  mutate(contribution = n * score) %>%
+  arrange(desc(abs(contribution))) %>%
+  head(20) %>%
+  mutate(word2 = reorder(word2, contribution)) %>%
+  ggplot(aes(word2, n * score, fill = n * score > 0)) +
+  geom_col(show.legend = FALSE) +
+  xlab("Words preceded by \"not\"") +
+  ylab("Sentiment score * number of occurrences") +
+  coord_flip()
+
+#Okay so with only 4 occurences it's hard to make anything meaningful out of this, let's try more words
+
+negation_words <- c("not", "no", "never", "without", "none", "nothing")
+
+negated_words <- bigrams_separated %>%
+  filter(word1 %in% negation_words) %>%
+  inner_join(afinn, by = c(word2 = "word")) %>%
+  count(word1, word2, score, sort = TRUE) %>%
+  ungroup()
+
+negated_words
+
+negated_words %>%
+  mutate(contribution = n * score) %>%
+  arrange(desc(abs(contribution))) %>%
+  head(20) %>%
+  group_by(word1)%>%
+  mutate(word2 = reorder(word2, contribution)) %>%
+  ggplot(aes(word2, n * score, fill = n * score > 0)) +
+  geom_col(show.legend = FALSE) +
+  xlab("Words preceded by \"negation\"") +
+  ylab("Sentiment score * number of occurrences") +
+  facet_wrap(~word1, ncol = 2, scales = "free") +
+  coord_flip()
+#we get a lot of warning and ugly graphs, but it's fine.
+
+#Because I'm not sure what to make of this, I'm  not even going to attempt this with trigrams. I can just imagine having to deal with "sorry not sorry" and I have no idea what to do with that....
+
+
+```
+
+Another approach is to look at a term's inverse document frequency (idf), which decreases the weight for commonly used words and increases the weight for words that are not used very much in a collection of documents. This can be combined with term frequency to calculate a term's tf-idf (the two quantities multiplied together), the frequency of a term adjusted for how rarely it is used. The statistic tf-idf is intended to measure how important a word is to a document in a collection (or corpus) of documents, for example, to one novel in a collection of novels or to one website in a collection of websites.
+
+                                              TF-IDF
+```{r}
+####idf ####
+
+nyc_words <- frequency %>%
+  unnest_tokens(word, tweet) %>%
+  count(borough, word, sort = TRUE) %>%
+  ungroup()
+
+total_words <- nyc_words %>% 
+  group_by(borough) %>% 
+  summarise(total = sum(n))
+
+nyc_words <- left_join(nyc_words, total_words)
+
+nyc_words
+
+freq_by_rank <- nyc_words %>% 
+  group_by(borough) %>% 
+  mutate(rank = row_number(), 
+         "termFrequency" = n/total)
+
+class(freq_by_rank$rank)
+class(freq_by_rank$termFrequency)
+
+#This plots shows me the linear relationship
+ggplot(freq_by_rank,aes(x=rank, y=termFrequency, color = borough)) + 
+geom_line(size = 1, alpha = 0.8, show.legend = FALSE) +
+scale_x_log10()+
+scale_y_log10()
+
+nyc_words <- nyc_words %>%
+  bind_tf_idf(word, borough, n)
+
+nyc_words
+
+nyc_words %>%
+  arrange(desc(tf_idf)) #looking at terms with high tf-idf, not very useful here. Most likely because I don't have much data.
+
+nyc_words %>%
+  arrange(desc(tf_idf)) %>%
+  mutate(word = factor(word, levels = rev(unique(word)))) %>% 
+  group_by(borough) %>% 
+  top_n(3) %>% 
+  ungroup %>%
+  ggplot(aes(word, tf_idf, fill = borough)) +
+  geom_col(show.legend = FALSE) +
+  labs(x = NULL, y = "tf-idf") +
+  facet_wrap(~borough, ncol = 2, scales = "free") +
+  coord_flip()
+
+#Now let's do this for bigrams
+nyc_bigrams_tfidf <- nyc_bigrams %>%
+  count(borough, bigram, sort = TRUE) %>%
+  ungroup()
+
+total_bigrams <- nyc_bigrams_tfidf %>% 
+  group_by(borough) %>% 
+  summarise(total = sum(n))
+
+nyc_bigrams_tfidf <- left_join(nyc_bigrams_tfidf, total_bigrams)
+
+nyc_bigrams_tfidf
+
+freq_by_rank_bi <- nyc_bigrams_tfidf %>% 
+  group_by(borough) %>% 
+  mutate(rank = row_number(), 
+         "termFrequency" = n/total)
+
+nyc_bigrams_tfidf <- nyc_bigrams_tfidf %>%
+  bind_tf_idf(bigram, borough, n)
+
+nyc_bigrams_tfidf
+
+nyc_bigrams_tfidf %>%
+  arrange(desc(tf_idf)) #A little better than the single tokens, it's looking like maybe a lot of Manhattan sleeps are really from hotel promoters and not actual people...
+
+nyc_bigrams_tfidf %>%
+  arrange(desc(tf_idf)) %>%
+  mutate(bigram = factor(bigram, levels = rev(unique(bigram)))) %>% 
+  group_by(borough) %>% 
+  top_n(3) %>% 
+  ungroup %>%
+  ggplot(aes(bigram, tf_idf, fill = borough)) +
+  geom_col(show.legend = FALSE) +
+  labs(x = NULL, y = "tf-idf") +
+  facet_wrap(~borough, ncol = 2, scales = "free") +
+  coord_flip()
+
+####Trigrams tfidf
+
+nyc_trigrams_tfidf <- nyc_trigrams %>%
+  count(borough, trigram, sort = TRUE) %>%
+  ungroup()
+
+total_trigrams <- nyc_trigrams_tfidf %>% 
+  group_by(borough) %>% 
+  summarise(total = sum(n))
+
+nyc_trigrams_tfidf <- left_join(nyc_trigrams_tfidf, total_trigrams)
+
+nyc_trigrams_tfidf
+
+freq_by_rank_tri <- nyc_trigrams_tfidf %>% 
+  group_by(borough) %>% 
+  mutate(rank = row_number(), 
+         "termFrequency" = n/total)
+
+nyc_trigrams_tfidf <- nyc_trigrams_tfidf %>%
+  bind_tf_idf(trigram, borough, n)
+
+nyc_trigrams_tfidf
+
+nyc_trigrams_tfidf %>%
+  arrange(desc(tf_idf)) #A little better than the single tokens, it's looking like maybe a lot of Manhattan sleeps are really from hotel promoters and not actual people...
+
+nyc_trigrams_tfidf %>%
+  arrange(desc(tf_idf)) %>%
+  mutate(trigram = factor(trigram, levels = rev(unique(trigram)))) %>% 
+  group_by(borough) %>% 
+  top_n(2) %>% 
+  ungroup %>%
+  ggplot(aes(trigram, tf_idf, fill = borough)) +
+  geom_col(show.legend = FALSE) +
+  labs(x = NULL, y = "tf-idf") +
+  facet_wrap(~borough, ncol = 2, scales = "free") +
+  coord_flip()   ####So exciting! "need a nap", "sick and tired" and things about people's sleep schedule are popping up! 
+
+```
+
+Alright let's play with some visualizations! 
+
+```{r}
+######## Visualization Play!############
+#Found an example of this visualization online and thought I'd try it out! 
+bigram_graph <- bigram_counts %>%
+  filter(n > 10) %>%
+  graph_from_data_frame()
+
+bigram_graph #Okay so I can kinda see the "direction" of word pairs
+
+set.seed(2017)
+
+ggraph(bigram_graph, layout = "fr") +
+  geom_edge_link() +
+  geom_node_point() +
+  geom_node_text(aes(label = name), vjust = 1, hjust = 1)
+
+set.seed(2016)
+
+a <- grid::arrow(type = "closed", length = unit(.15, "inches"))
+
+ggraph(bigram_graph, layout = "fr") +
+  geom_edge_link(aes(edge_alpha = n), show.legend = FALSE,
+                 arrow = a, end_cap = circle(.07, 'inches')) +
+  geom_node_point(color = "lightblue", size = 5) +
+  geom_node_text(aes(label = name), vjust = 1, hjust = 1) +
+  theme_void()
+
+#Cool!
+
+#####Correlations######
+install.packages("widyr")
+library(widyr)
+
+nyc_borough_words <- frequency %>%
+  mutate(section = borough) %>%
+  unnest_tokens(word, tweet)
+
+nyc_borough_words
+
+#Let's filter for common words
+word_cors <- nyc_borough_words %>%
+  group_by(word) %>%
+  filter(n() >= 20) %>%
+  pairwise_cor(word, section, sort = TRUE)
+
+word_cors
+
+#Now let's find correlations with particular words
+sleep_cors <- word_cors %>%
+  filter(item1 == "sleep") #ugh... not useful lets try other words and graph it
+
+word_cors %>%
+  filter(item1 %in% c("sleep", "tired", "bed")) %>%
+  group_by(item1) %>%
+  top_n(15) %>%
+  ungroup() %>%
+  mutate(item2 = reorder(item2, correlation)) %>%
+  ggplot(aes(item2, correlation)) +
+  geom_bar(stat = "identity") +
+  facet_wrap(~ item1, scales = "free") +
+  coord_flip()
+
+
+```
+
+
+
+
+Topic Modeling
+```{r}
+#Attempting Topic Modeling by borough
+install.packages("topicmodels")
+library(tm)
+library(topicmodels)
+
+#First need to create a Document Term Matrix (dtm)
+docs.df <-read.csv("twitter.sleepAll.4918.csv", header=TRUE) #read in CSV file
+docs <- Corpus(VectorSource(docs.df$plaintext))
+docs
+inspect(docs)
+
+dtm <- DocumentTermMatrix(docs,
+                          control = list(tolower = TRUE,
+                          removePunctuation = TRUE,
+                          removeNumbers = FALSE,
+                          stopwords = TRUE,
+                          stemming=FALSE))
+
+str(dtm)
+
+#We can use the LDA() function from the topicmodels package, setting k = 5, to create a five-topic LDA model. This function returns an object containing the full details of the model fit, such as how words are associated with topics and how topics are associated with documents.
+
+# set a seed so that the output of the model is replicable. 
+ny_lda <- LDA(dtm, k = 5, control = list(seed = 1234))
+ny_lda
+
+#Hmmmm getting error. Searched stackoverflow and found that someone else had the same issue. My understanding in that after applying my controls when creating the dtm some documents were stripped of terms. Running these two lines of code and then the lda again worked! 
+
+rowTotals <- apply(dtm , 1, sum) #Find the sum of words in each Document
+dtm.new   <- dtm[rowTotals> 0, ]           #remove all docs without words
+
+ny_lda <- LDA(dtm.new, k = 5, control = list(seed = 1234))
+ny_lda
+
+ny_topics <- tidy(ny_lda, matrix = "beta")
+ny_topics #Notice that this has turned the model into a one-topic-per-term-per-row format. For each combination, the model computes the probability of that term being generated from that topic. For example, the term "212.." has a 3.17 e-263 probability of being generated from topic 1 and an even smaller prob of being in others. Makes sense since this "token" clearly is someone's phone number... only occurs once in the enitre dataset.
+
+ny_top_terms <- ny_topics %>%
+  group_by(topic) %>%
+  top_n(10, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta)
+
+ny_top_terms %>%
+  mutate(term = reorder(term, beta)) %>%
+  ggplot(aes(term, beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  coord_flip()
+#### Awesome! I'n my head I envisioned 5 topics 1 per borough, but I think that this is probably too many, I can't tell a big difference between all of them so let's try this again but with fewer topics. 
+
+ny_lda2 <- LDA(dtm.new, k = 3, control = list(seed = 1234))
+ny_lda2
+
+ny_topics2 <- tidy(ny_lda2, matrix = "beta")
+ny_topics2 
+
+ny_top_terms2 <- ny_topics2 %>%
+  group_by(topic) %>%
+  top_n(10, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta)
+
+ny_top_terms2 %>%
+  mutate(term = reorder(term, beta)) %>%
+  ggplot(aes(term, beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  coord_flip()  #hmmmm a little better, definitely need more data, but it maybe looks like topics surrounding being tired early in the morning and late at night? Just speculation...
+
+#Lastly, just to save the dtm we created for this I'm changing my directory from my Raw Data folder to my Cleaned Data folder and savinf the dtm as a csv. 
+
+setwd("~/Research/TwitterSleepBeliefs/Data/CleanedData")
+
+dtm.new <- as.data.frame(as.matrix(dtm.new))
+names(docs)  # names of documents
+
+write.csv(dtm.new,"twitter.sleepAlldtm.csv")
+
+```
+
+
+the end :) 
+
+
+
+
+
+
+
+
+

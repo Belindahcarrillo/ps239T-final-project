@@ -1,0 +1,320 @@
+---
+output:
+  html_document: default
+  pdf_document: default
+---
+### BelindaCarrillo###
+
+Code Outline
+Data Collection
+1: Setup
+  -This chunck will set things up for me. Load necessary library, get access the the Twitter API and set my working directory where I will save my data. 
+2: Manhattan
+3: Brooklyn
+4: Bronx
+5: Queens
+6: Staten Island
+
+
+```{r}
+#install.packages("rtweet")
+#website for package useage http://rtweet.info/ 
+#Twitter rate limits cap the number of search results returned to 18,000 every 15 minutes. To request more than that, simply set retryonratelimit = TRUE and rtweet will wait for rate limit resets for you.
+
+#Set my working directory to where I want my data to be saved. 
+setwd("~/Research/TwitterSleepBeliefs/Data/RawData")
+
+#load twitter package in R
+library(rtweet)
+
+#This is taking my tokens and authorizing my access to the twitter API. Edited it for github to not contain my actual tokens.
+create_token(app="xxxx",
+             consumer_key="xxxxx", 
+             consumer_secret="xxxxx")
+
+
+```
+
+
+
+```{r}
+
+#MANHATTAN
+
+Mantw <- search_tweets('sleep
+                       OR tired
+                       OR nap
+                       OR snooze
+                       OR bed
+                       OR insomnia
+                       OR exhausted
+                       OR #sleep
+                       OR #tired
+                       OR #nap
+                       OR #snooze
+                       OR #bed
+                       OR #insomnia
+                       OR #exhausted',#This is the search term I am kooking for. There is a 500 character limit so I will need to send multiple requests with different search terms. Use "OR"
+                       n=100, #This is the number of tweets I'm asking to pull from the API.
+                       include_rts=FALSE, #This is excluding retweets
+                       type="recent", # Specifying that I want the most recent published tweets 
+                       parse=TRUE,
+                       geocode='40.758896,-73.985130,1mi') #Note here that a 1 mile radius was used and that Time's Square was used... should I change? Format is lat, long, radius in miles. Discovered this is whitespace sensitive so DO NOT ADD SPACES!
+
+#I'm going to make the same call as above just with different search terms
+
+Mantw2 <- search_tweets('#zzz
+                       OR #sleepless
+                       OR #sleepwhenimdead
+                       OR #latenight
+                       OR #drained
+                       OR #needsleep
+                       OR #longday
+                       OR #sotired
+                       OR #sleepisoverated
+                       OR #letmesleep
+                       OR #sleepdeprived
+                       OR #sleepisfortherich',#This is the search term I am kooking for. There is a 500 character limit so I will need to send multiple requests with different search terms. Use "OR"
+                       n=100, #This is the number of tweets I'm asking to pull from the API.
+                       include_rts=FALSE, #This is excluding retweets
+                       type="recent", # Specifying that I want the most recent published tweets 
+                       parse=TRUE,
+                       geocode='40.758896,-73.985130,1mi')  
+
+Mantwfull <- rbind(Mantw, Mantw2) #this line is combining different calls made to the API into one dataframe.
+
+Mantwfull$plaintext <- plain_tweets(Mantwfull$text) #This is converting all the tweets to plaintext (i.e: removing symbols, etc) MAKE SURE THIS IS DONE BEFORE DATA IS EXPORTED/REMOVED FROM GLOBAL ENVIRONMENT! Importing a raw file back into global environment to run this function on later will not work and will result in needing to clean tweets by hand!
+                            
+#Writing get requests to csv
+write_as_csv(Mantwfull,"twitter.sleepMan.4918.csv")
+
+```
+
+``` {r}
+
+#BROOKLYN
+
+Brotw <- search_tweets('sleep
+                       OR tired
+                       OR nap
+                       OR snooze
+                       OR bed
+                       OR insomnia
+                       OR exhausted
+                       OR #sleep
+                       OR #tired
+                       OR #nap
+                       OR #snooze
+                       OR #bed
+                       OR #insomnia
+                       OR #exhausted',#This is the search term I am kooking for. There is a 500 character limit so I will need to send multiple requests with different search terms. Use "OR"
+                       n=100, #This is the number of tweets I'm asking to pull from the API.
+                       include_rts=FALSE, #This is excluding retweets
+                       type="recent", # Specifying that I want the most recent published tweets 
+                       parse=TRUE,
+                       geocode='40.650002,-73.949997,5mi') #Note here that a 5 mile radius was used
+
+#I'm going to make the same call as above just with different search terms
+
+Brotw2 <- search_tweets('#zzz
+                       OR #sleepless
+                       OR #sleepwhenimdead
+                       OR #latenight
+                       OR #drained
+                       OR #needsleep
+                       OR #longday
+                       OR #sotired
+                       OR #sleepisoverated
+                       OR #letmesleep
+                       OR #sleepdeprived
+                       OR #sleepisfortherich',#This is the search term I am kooking for. There is a 500 character limit so I will need to send multiple requests with different search terms. Use "OR"
+                       n=100, #This is the number of tweets I'm asking to pull from the API.
+                       include_rts=FALSE, #This is excluding retweets
+                       type="recent", # Specifying that I want the most recent published tweets 
+                       parse=TRUE,
+                       geocode='40.650002,-73.949997,5mi')
+
+Brotwfull <- rbind(Brotw, Brotw2)
+
+Brotwfull$plaintext <- plain_tweets(Brotwfull$text)
+                            
+#Writing get requests to csv
+write_as_csv(Brotwfull,"twitter.sleepBro.4918.csv")
+
+```
+
+```{r}
+
+#BRONX
+
+Brontw <- search_tweets('sleep
+                       OR tired
+                       OR nap
+                       OR snooze
+                       OR bed
+                       OR insomnia
+                       OR exhausted
+                       OR #sleep
+                       OR #tired
+                       OR #nap
+                       OR #snooze
+                       OR #bed
+                       OR #insomnia
+                       OR #exhausted',#This is the search term I am kooking for. There is a 500 character limit so I will need to send multiple requests with different search terms. Use "OR"
+                       n=100, #This is the number of tweets I'm asking to pull from the API.
+                       include_rts=FALSE, #This is excluding retweets
+                       type="recent", # Specifying that I want the most recent published tweets 
+                       parse=TRUE,
+                       geocode='40.837048,-73.865433,3mi')#Note here that a 3 mile radius was used
+
+#I'm going to make the same call as above just with different search terms
+
+Brontw2 <- search_tweets('#zzz
+                       OR #sleepless
+                       OR #sleepwhenimdead
+                       OR #latenight
+                       OR #drained
+                       OR #needsleep
+                       OR #longday
+                       OR #sotired
+                       OR #sleepisoverated
+                       OR #letmesleep
+                       OR #sleepdeprived
+                       OR #sleepisfortherich',#This is the search term I am kooking for. There is a 500 character limit so I will need to send multiple requests with different search terms. Use "OR"
+                       n=100, #This is the number of tweets I'm asking to pull from the API.
+                       include_rts=FALSE, #This is excluding retweets
+                       type="recent", # Specifying that I want the most recent published tweets 
+                       parse=TRUE,
+                       geocode='40.837048,-73.865433,3mi')  
+
+Brontwfull <- rbind(Brontw, Brontw2)
+
+Brontwfull$plaintext <- plain_tweets(Brontwfull$text)
+
+                            
+#Writing get requests to csv
+write_as_csv(Brontwfull,"twitter.sleepBron.4918.csv")
+
+```
+
+```{r}
+
+#QUEENS
+
+Quetw <- search_tweets('sleep
+                       OR tired
+                       OR nap
+                       OR snooze
+                       OR bed
+                       OR insomnia
+                       OR exhausted
+                       OR #sleep
+                       OR #tired
+                       OR #nap
+                       OR #snooze
+                       OR #bed
+                       OR #insomnia
+                       OR #exhausted',#This is the search term I am kooking for. There is a 500 character limit so I will need to send multiple requests with different search terms. Use "OR"
+                       n=100, #This is the number of tweets I'm asking to pull from the API.
+                       include_rts=FALSE, #This is excluding retweets
+                       type="recent", # Specifying that I want the most recent published tweets 
+                       parse=TRUE,
+                       geocode='40.742054,-73.769417,8mi') #Note here that a 8 mile radius was used, and that I'm not sure I want to use these points, these with a 5 mile radius might be more central "40.730197, -73.833075" but this was just me eyeballing stuff... 
+
+#I'm going to make the same call as above just with different search terms
+
+Quetw2 <- search_tweets('#zzz
+                       OR #sleepless
+                       OR #sleepwhenimdead
+                       OR #latenight
+                       OR #drained
+                       OR #needsleep
+                       OR #longday
+                       OR #sotired
+                       OR #sleepisoverated
+                       OR #letmesleep
+                       OR #sleepdeprived
+                       OR #sleepisfortherich',#This is the search term I am kooking for. There is a 500 character limit so I will need to send multiple requests with different search terms. Use "OR"
+                       n=100, #This is the number of tweets I'm asking to pull from the API.
+                       include_rts=FALSE, #This is excluding retweets
+                       type="recent", # Specifying that I want the most recent published tweets 
+                       parse=TRUE,
+                       geocode='40.742054,-73.769417,8mi') #Note here that a 8 mile radius was used, and that I'm not sure I want to use these points, these with a 5 mile radius might be more central "40.730197, -73.833075" but this was just me eyeballing stuff... 
+
+Quetwfull <- rbind(Quetw, Quetw2)
+
+Quetwfull$plaintext <- plain_tweets(Quetwfull$text)
+                            
+#Writing get requests to csv
+write_as_csv(Quetwfull,"twitter.sleepQue.4918.csv")
+
+```
+
+
+```{r}
+
+#STATEN ISLAND
+
+Statw <- search_tweets('sleep
+                       OR tired
+                       OR nap
+                       OR snooze
+                       OR bed
+                       OR insomnia
+                       OR exhausted
+                       OR #sleep
+                       OR #tired
+                       OR #nap
+                       OR #snooze
+                       OR #bed
+                       OR #insomnia
+                       OR #exhausted',#This is the search term I am kooking for. There is a 500 character limit so I will need to send multiple requests with different search terms. Use "OR"
+                       n=100, #This is the number of tweets I'm asking to pull from the API.
+                       include_rts=FALSE, #This is excluding retweets
+                       type="recent", # Specifying that I want the most recent published tweets 
+                       parse=TRUE,
+                       geocode='40.579021,-74.151535,5mi') #Note here that a 5 mile radius was used
+
+#I'm going to make the same call as above just with different search terms
+
+Statw2 <- search_tweets('#zzz
+                       OR #sleepless
+                       OR #sleepwhenimdead
+                       OR #latenight
+                       OR #drained
+                       OR #needsleep
+                       OR #longday
+                       OR #sotired
+                       OR #sleepisoverated
+                       OR #letmesleep
+                       OR #sleepdeprived
+                       OR #sleepisfortherich',#This is the search term I am kooking for. There is a 500 character limit so I will need to send multiple requests with different search terms. Use "OR"
+                       n=100, #This is the number of tweets I'm asking to pull from the API.
+                       include_rts=FALSE, #This is excluding retweets
+                       type="recent", # Specifying that I want the most recent published tweets 
+                       parse=TRUE,
+                       geocode='40.579021,-74.151535,5mi') #Note here that a 5 mile radius was used
+
+Statwfull <- rbind(Statw, Statw2)
+
+Statwfull$plaintext <- plain_tweets(Statwfull$text)
+                            
+#Writing get requests to csv
+write_as_csv(Statwfull,"twitter.sleepSta.4918.csv")
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
