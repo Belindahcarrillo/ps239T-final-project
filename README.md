@@ -24,7 +24,7 @@ R, version 3
     -library(tidyr)
 
 # Files
--6 csv data files
+-7 csv data files
 -2 R markdown files, 1 for data collection 1 for cleaning
 
 ## Data
@@ -34,10 +34,10 @@ R, version 3
     -twitter.sleepBro.4918.csv (Brooklyn)
     -twitter.sleepBron.4918.csv (Bronx)
     -twitter.sleepQue.4918.csv (Queens)
-    -twitter.sleepStat.4918.csv (Staten Island)
+    -twitter.sleepStat.4918.csv (Staten Island)  
+ -twitter.sleepAll.dtm.csv: The dtm I used to try out some topic modeling
     
 ## Code
 01_NY_tweets-datacollection: Collects data from Twitter API, converts twitter json text to plain text and and exports data to csvs.
 02_NY_tweets-datacleaning:merge-data.R: Loads, cleans, and executes exploratory analysis. 
 
-Graphs:
